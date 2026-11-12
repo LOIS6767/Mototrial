@@ -1,0 +1,814 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Moto Trial</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Russo+One&display=swap">
+<style>
+/* Layout: canvas a pantalla completa; HUD arriba, mandos táctiles abajo, menús como capas centradas */
+:root {
+  --sky-top: #23244d;
+  --sky-mid: #6b3f7a;
+  --sky-low: #f08a5d;
+  --ink: #f7ecdc;
+  --ink-dim: #c9b9c9;
+  --ground: #1d1830;
+  --ground-edge: #e0a84a;
+  --accent: #ffd23f;
+  --danger: #e63946;
+  --panel: rgba(22, 17, 40, 0.88);
+  --line: rgba(247, 236, 220, 0.18);
+  --font-display: "Russo One", "Arial Black", Impact, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+#app { position: relative; width: 100%; height: 100%; overflow: hidden; }
+#c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* HUD */
+#hud {
+  position: absolute; left: 0; right: 0; top: 0;
+  padding: 10px max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#hud[hidden] { display: none; }
+.hud-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.hud-left, .hud-right { flex: 1 1 0; min-width: 0; display: flex; gap: 8px; }
+.hud-right { justify-content: flex-end; flex-wrap: wrap; }
+.hud-left { flex-direction: column; gap: 2px; }
+#lvlname { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+#stats { font-size: 14px; font-weight: 600; color: var(--ink); text-shadow: 0 1px 0 rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
+#timer {
+  font-family: var(--font-display); font-size: 30px; line-height: 1;
+  font-variant-numeric: tabular-nums; text-shadow: 0 3px 0 rgba(0,0,0,.35);
+  padding-top: 2px;
+}
+.chip {
+  pointer-events: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.03em;
+}
+.chip:hover { border-color: var(--accent); }
+#prog { position: relative; height: 8px; border-radius: 4px; background: rgba(0,0,0,.35); overflow: hidden; }
+#progFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--accent); }
+.tick { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(247,236,220,.7); }
+
+/* Aviso breve */
+#toast {
+  position: absolute; left: 50%; top: 86px; transform: translate(-50%, -8px);
+  background: var(--panel); border: 1px solid var(--accent); color: var(--ink);
+  padding: 8px 16px; border-radius: 6px; font-weight: 600; letter-spacing: .04em;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Mandos táctiles */
+#touch {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: none; justify-content: space-between; align-items: flex-end; gap: 12px;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+#touch[hidden] { display: none !important; }
+.show-touch #touch:not([hidden]) { display: flex; }
+@media (pointer: coarse) { #touch:not([hidden]) { display: flex; } }
+.pad { display: flex; gap: 10px; }
+.pbtn {
+  pointer-events: auto; touch-action: none;
+  width: 84px; height: 84px; border-radius: 50%;
+  background: rgba(22, 17, 40, 0.62); border: 2px solid var(--line);
+  font-family: var(--font-display); font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+  display: grid; place-items: center; text-align: center; line-height: 1.1;
+}
+.pbtn.on { background: var(--accent); color: #241b3a; border-color: var(--accent); }
+.pbtn.gas { width: 100px; height: 100px; }
+
+/* Capas de menú */
+.overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(16, 11, 30, 0.55);
+  overflow-y: auto; touch-action: pan-y;
+}
+.overlay[hidden] { display: none; }
+.panel {
+  width: 100%; max-width: 760px; min-width: 0; margin: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 24px; box-sizing: border-box;
+}
+.title { font-family: var(--font-display); font-size: clamp(34px, 8vw, 58px); line-height: 1; margin: 0; letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
+.title span { color: var(--accent); }
+.lead { margin: 10px 0 20px; color: var(--ink-dim); font-size: 17px; max-width: 52ch; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.card {
+  text-align: left; min-width: 0;
+  background: rgba(247, 236, 220, 0.06); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.card:hover { border-color: var(--accent); background: rgba(247,236,220,.1); }
+.card h3 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
+.card .meta { color: var(--ink-dim); font-size: 14px; }
+.card .best { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stars { color: var(--accent); letter-spacing: 3px; font-size: 18px; }
+.stars .off { color: rgba(247,236,220,.25); }
+.diff { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+.diff.d1 { color: #8fd694; } .diff.d2 { color: var(--accent); } .diff.d3 { color: #ff7a6b; }
+.keys { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 20px; color: var(--ink-dim); font-size: 14px; }
+.keys b { color: var(--ink); font-weight: 600; }
+kbd {
+  display: inline-block; min-width: 20px; text-align: center; padding: 1px 6px; margin-right: 2px;
+  border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 4px; background: rgba(247,236,220,.08);
+  font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--ink);
+}
+.big { font-family: var(--font-display); font-size: clamp(30px, 7vw, 46px); margin: 0 0 4px; text-transform: uppercase; }
+.result { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 14px 0 18px; font-variant-numeric: tabular-nums; }
+.result div { min-width: 0; }
+.result small { display: block; color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+.result strong { font-family: var(--font-display); font-weight: 400; font-size: 26px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  background: rgba(247,236,220,.08); border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 16px; font-weight: 600; letter-spacing: .03em;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #241b3a; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+@media (max-width: 520px) {
+  #timer { font-size: 24px; }
+  .chip { padding: 5px 8px; font-size: 12px; }
+  .panel { padding: 18px; }
+}
+</style>
+
+<div id="app">
+  <canvas id="c"></canvas>
+
+  <div id="hud" hidden>
+    <div class="hud-row">
+      <div class="hud-left">
+        <div id="lvlname"></div>
+        <div id="stats"></div>
+      </div>
+      <div id="timer">00:00.00</div>
+      <div class="hud-right">
+        <button class="chip" id="bRestart" type="button">Reiniciar (R)</button>
+        <button class="chip" id="bSound" type="button">Sonido: sí</button>
+        <button class="chip" id="bMenu" type="button">Menú</button>
+      </div>
+    </div>
+    <div id="prog"><div id="progFill"></div></div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="touch" hidden>
+    <div class="pad">
+      <button class="pbtn" type="button" data-k="back">Atrás</button>
+      <button class="pbtn" type="button" data-k="fwd">Adelante</button>
+    </div>
+    <div class="pad">
+      <button class="pbtn" type="button" data-k="brake">Freno</button>
+      <button class="pbtn gas" type="button" data-k="gas">Gas</button>
+    </div>
+  </div>
+
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <h1 class="title">Moto <span>Trial</span></h1>
+      <p class="lead">Acelera, salta los barrancos y llega a la meta sin que tu casco toque el suelo. Cada bandera es un punto de control.</p>
+      <div class="levels" id="levels"></div>
+      <div class="keys">
+        <div><kbd>↑</kbd><kbd>W</kbd> <b>Gas</b></div>
+        <div><kbd>↓</kbd><kbd>S</kbd> <b>Freno</b></div>
+        <div><kbd>←</kbd><kbd>A</kbd> <b>Inclinar atrás</b> (levanta la rueda)</div>
+        <div><kbd>→</kbd><kbd>D</kbd> <b>Inclinar adelante</b> (baja el morro)</div>
+        <div><kbd>R</kbd> <b>Reiniciar</b> desde el control</div>
+        <div><kbd>M</kbd> <b>Sonido</b> · <kbd>Esc</kbd> <b>Menú</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="end" class="overlay" hidden>
+    <div class="panel">
+      <h2 class="big">¡Meta!</h2>
+      <div class="stars" id="endStars"></div>
+      <div class="result">
+        <div><small>Tiempo</small><strong id="endTime">0</strong></div>
+        <div><small>Caídas</small><strong id="endCrashes">0</strong></div>
+        <div><small>Mejor</small><strong id="endBest">0</strong></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="bNext" type="button">Siguiente nivel</button>
+        <button class="btn" id="bAgain" type="button">Repetir</button>
+        <button class="btn" id="bEndMenu" type="button">Menú</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+// <physics>
+const STEP = 20;            // separación horizontal entre muestras del terreno (px)
+const GRAV = 1500;          // gravedad (px/s²)
+const SUB = 4;              // subpasos de física por fotograma
+const WR = 14;              // radio de rueda
+const HR = 9;               // radio del casco
+const PX_PER_M = 50;        // 1 m = 50 px
+const ACC = 1150, MAXV = 800, LEAN = 0.00022, WHEELIE = 0.00005, OMEGA_MAX = 7, BRAKE = 0.985;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+const LEVELS = [
+  { name: 'Colinas del Sur', diff: 1, label: 'Fácil', pieces: [
+    ['f',700],['s',600,-90],['f',300],['b',6,10],['f',500],['c'],
+    ['s',500,70],['f',500],['r',120,-45],['g',140,700,35],['f',500],['c'],
+    ['s',700,-120],['f',200],['s',600,150],['f',400],['b',8,12],['f',500],['r',120,-50],['g',180,700,50],['f',600],['c'],
+    ['s',500,-60],['b',5,14],['f',400],['s',400,80],['f',300],['c'],
+    ['s',500,-140],['f',300],['b',10,12],['f',400],['r',120,-50],['g',170,700,40],['f',500],['c'],
+    ['s',800,110],['f',300],['b',7,14],['f',300],['s',500,-100],['f',300],['r',130,-55],['g',190,700,45],['f',500],['c'],
+    ['s',600,60],['b',6,14],['f',400],['e'] ] },
+  { name: 'Cantera Roja', diff: 2, label: 'Media', pieces: [
+    ['f',600],['r',130,-60],['g',170,700,30],['f',500],['c'],
+    ['s',500,-160],['f',200],['s',500,200],['f',300],['b',8,16],['f',400],['c'],
+    ['s',400,-100],['r',140,-70],['g',220,700,50],['f',500],['b',6,18],['f',300],['c'],
+    ['s',600,-220],['s',400,160],['f',300],['r',140,-70],['g',200,700,0],['f',500],['c'],
+    ['b',10,16],['f',300],['s',500,-80],['f',300],['c'],
+    ['s',500,-180],['f',250],['s',600,220],['f',300],['b',10,18],['f',400],['r',140,-70],['g',230,700,50],['f',500],['c'],
+    ['s',700,-140],['b',6,20],['f',300],['r',150,-75],['g',250,700,60],['f',500],['c'],
+    ['s',500,180],['s',500,-120],['f',300],['b',8,18],['f',300],['e'] ] },
+  { name: 'Volcán', diff: 3, label: 'Difícil', pieces: [
+    ['f',500],['r',150,-80],['g',240,800,50],['f',450],['c'],
+    ['s',450,-200],['f',150],['s',450,200],['f',250],['b',10,16],['f',350],['c'],
+    ['r',150,-80],['g',280,800,60],['f',400],['s',400,-200],['r',150,-70],['g',200,800,-20],['f',400],['c'],
+    ['b',12,22],['s',500,200],['f',300],['r',160,-90],['g',300,800,80],['f',500],['c'],
+    ['s',500,-260],['s',400,200],['b',8,22],['f',300],['c'],
+    ['s',500,-280],['f',200],['s',500,260],['b',10,22],['f',400],['r',160,-90],['g',300,800,70],['f',500],['c'],
+    ['s',500,-240],['r',150,-75],['g',250,800,0],['f',400],['b',12,24],['s',600,220],['f',350],['c'],
+    ['r',160,-90],['g',300,800,80],['f',450],['s',600,-120],['b',8,24],['f',300],['e'] ] }
+];
+
+function buildLevel(spec) {
+  const H = [-900, -900, -450, 0];
+  let y = 0, finishX = 0, maxY = 0;
+  const checkpoints = [], pits = [];
+  const X = () => (H.length - 1) * STEP;
+  for (const p of spec.pieces) {
+    const t = p[0], a = p[1] || 0, b = p[2] || 0, c = p[3] || 0;
+    const n = Math.max(1, Math.round(a / STEP));
+    if (t === 'f') {
+      for (let i = 0; i < n; i++) H.push(y);
+    } else if (t === 's') {
+      const y0 = y; y += b;
+      for (let i = 1; i <= n; i++) H.push(y0 + (y - y0) * (1 - Math.cos(Math.PI * i / n)) / 2);
+    } else if (t === 'r') {
+      const y0 = y; y += b;
+      for (let i = 1; i <= n; i++) H.push(y0 + (y - y0) * i / n);
+    } else if (t === 'b') {
+      for (let k = 0; k < a; k++) for (let j = 1; j <= 6; j++) H.push(y - b * Math.sin(Math.PI * j / 6));
+    } else if (t === 'g') {
+      const x0 = X(), lip = y, wn = Math.max(1, Math.round(a / STEP) - 1);
+      for (let i = 0; i < wn; i++) H.push(y + b);
+      y += c; H.push(y);
+      pits.push({ x0, x1: X(), lipY: Math.max(lip, y) });
+    } else if (t === 'c') {
+      checkpoints.push({ x: X() + 40 });
+    } else if (t === 'e') {
+      finishX = X();
+      for (let i = 0; i < 70; i++) H.push(y);
+    }
+  }
+  for (const h of H) if (h > maxY && h < 3000) maxY = h;
+  // altura de las zonas sin foso para saber el nivel más bajo "normal"
+  let low = -1e9;
+  const inPit = i => pits.some(p => i * STEP >= p.x0 && i * STEP <= p.x1);
+  for (let i = 4; i < H.length; i++) if (!inPit(i) && H[i] > low) low = H[i];
+  return { H, checkpoints, pits, finishX, startX: 200, maxY: low };
+}
+
+function groundY(L, x) {
+  const f = clamp(x / STEP, 0, L.H.length - 1.001);
+  const i = Math.floor(f), k = f - i;
+  return L.H[i] * (1 - k) + L.H[i + 1] * k;
+}
+function slopeAt(L, x) {
+  const f = clamp(x / STEP, 0, L.H.length - 1.001), i = Math.floor(f);
+  return Math.atan2(L.H[i + 1] - L.H[i], STEP);
+}
+
+const hitInfo = { nx: 0, ny: -1 };
+function collide(L, p, r) {
+  const H = L.H;
+  const i0 = Math.max(0, Math.floor((p.x - r) / STEP));
+  const i1 = Math.min(H.length - 2, Math.floor((p.x + r) / STEP));
+  let hit = false;
+  for (let i = i0; i <= i1; i++) {
+    const ax = i * STEP, ay = H[i], dx = STEP, dy = H[i + 1] - ay;
+    const len2 = dx * dx + dy * dy, len = Math.sqrt(len2);
+    const t = clamp(((p.x - ax) * dx + (p.y - ay) * dy) / len2, 0, 1);
+    const ex = p.x - (ax + dx * t), ey = p.y - (ay + dy * t);
+    const d2 = ex * ex + ey * ey;
+    if (d2 >= r * r) continue;
+    const sx = dy / len, sy = -dx / len;          // normal hacia el aire
+    let d = Math.sqrt(d2), nx, ny, push;
+    if (ex * sx + ey * sy < 0) { nx = sx; ny = sy; push = r + d; }   // el punto ya está bajo la superficie
+    else if (d > 1e-6) { nx = ex / d; ny = ey / d; push = r - d; }
+    else { nx = sx; ny = sy; push = r; }
+    p.x += nx * push; p.y += ny * push;
+    hit = true; hitInfo.nx = nx; hitInfo.ny = ny;
+  }
+  return hit;
+}
+
+function makeBike(L, x) {
+  const gy = Math.min(groundY(L, x - 28), groundY(L, x + 28));
+  const cy = gy - WR - 1;
+  const mk = (px, py) => ({ x: px, y: py, px: px, py: py });
+  const p = [mk(x - 28, cy), mk(x + 28, cy), mk(x - 4, cy - 40)];
+  const d = (i, j) => Math.hypot(p[i].x - p[j].x, p[i].y - p[j].y);
+  return { p, rest: [[0, 1, d(0, 1)], [0, 2, d(0, 2)], [1, 2, d(1, 2)]],
+    dead: false, finished: false, rc: false, fc: false, rn: { x: 0, y: -1 }, wr: 0 };
+}
+
+function centroid(p) { return [(p[0].x + p[1].x + p[2].x) / 3, (p[0].y + p[1].y + p[2].y) / 3]; }
+function rotatePts(p, ang) {
+  const g = centroid(p), c = Math.cos(ang), s = Math.sin(ang);
+  for (const q of p) {
+    const dx = q.x - g[0], dy = q.y - g[1];
+    q.x = g[0] + dx * c - dy * s; q.y = g[1] + dx * s + dy * c;
+  }
+}
+function omega(p, dt) {
+  const g = centroid(p); let num = 0, den = 0;
+  for (const q of p) {
+    const rx = q.x - g[0], ry = q.y - g[1], vx = (q.x - q.px) / dt, vy = (q.y - q.py) / dt;
+    num += rx * vy - ry * vx; den += rx * rx + ry * ry;
+  }
+  return num / den;
+}
+
+function stepBike(b, L, inp, dt) {
+  const p = b.p, A = p[0], B = p[1], C = p[2];
+  for (const q of p) {
+    let vx = q.x - q.px, vy = q.y - q.py;
+    const sp = Math.hypot(vx, vy) / dt;
+    const damp = sp > MAXV ? Math.max(0.98, 0.9998 - 0.006 * (sp / MAXV - 1)) : 0.9998;
+    vx *= damp; vy *= damp;
+    q.px = q.x; q.py = q.y; q.x += vx; q.y += vy + GRAV * dt * dt;
+  }
+  if (!b.dead) {
+    const lean = (inp.fwd ? 1 : 0) - (inp.back ? 1 : 0);
+    if (lean) {
+      const w = omega(p, dt);
+      if ((lean > 0 && w < OMEGA_MAX) || (lean < 0 && w > -OMEGA_MAX)) rotatePts(p, lean * LEAN);
+    }
+    if (inp.gas && b.rc) {
+      let tx = -b.rn.y, ty = b.rn.x;
+      if (tx < 0) { tx = -tx; ty = -ty; }
+      const va = ((A.x - A.px) * tx + (A.y - A.py) * ty) / dt;
+      if (va < MAXV) { const a = ACC * dt * dt; for (const q of p) { q.x += tx * a; q.y += ty * a; } }
+      rotatePts(p, -WHEELIE);
+    }
+    if (inp.brake && (b.rc || b.fc)) {
+      for (const q of p) { q.px = q.x - (q.x - q.px) * BRAKE; q.py = q.y - (q.y - q.py) * BRAKE; }
+    }
+  }
+  b.rc = false; b.fc = false;
+  for (let it = 0; it < 8; it++) {
+    for (const r of b.rest) {
+      const a = p[r[0]], c = p[r[1]];
+      const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1e-6, k = (d - r[2]) / d * 0.5;
+      a.x += dx * k; a.y += dy * k; c.x -= dx * k; c.y -= dy * k;
+    }
+    if (collide(L, A, WR)) { b.rc = true; b.rn.x = hitInfo.nx; b.rn.y = hitInfo.ny; }
+    if (collide(L, B, WR)) b.fc = true;
+    if (collide(L, C, HR) && !b.dead && !b.finished) b.dead = true;
+  }
+  for (const pit of L.pits) {
+    for (const q of [A, B]) if (q.x > pit.x0 && q.x < pit.x1 && q.y > pit.lipY + 100 && !b.finished) b.dead = true;
+  }
+  if (A.y > L.maxY + 700) b.dead = true;
+  const ux = B.x - A.x, uy = B.y - A.y, ul = Math.hypot(ux, uy) || 1;
+  b.wr += (((A.x - A.px) * ux + (A.y - A.py) * uy) / ul) / WR;
+  if (B.x > L.finishX && L.finishX > 0 && !b.dead) b.finished = true;
+}
+// </physics>
+
+// ---------- Estado ----------
+const NONE = {};
+const LV = LEVELS.map(buildLevel);
+LV.forEach((l, i) => { l.par = (l.finishX - l.startX) / 600; l.meters = Math.round(l.finishX / PX_PER_M); });
+const game = {
+  state: 'menu', li: 0, L: LV[0], bike: makeBike(LV[0], LV[0].startX),
+  time: 0, crashes: 0, cp: -1, started: false, crashTimer: 0, crashHandled: false,
+  camX: 0, camY: 0, finishTimer: 0
+};
+const particles = [];
+const keys = { gas: false, brake: false, back: false, fwd: false };
+const touchKeys = { gas: false, brake: false, back: false, fwd: false };
+let best = {};
+try { best = JSON.parse(localStorage.getItem('motoTrial.best') || '{}') || {}; } catch (e) { best = {}; }
+function saveBest() { try { localStorage.setItem('motoTrial.best', JSON.stringify(best)); } catch (e) { /* sin almacenamiento */ } }
+
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
+let W = 0, Hh = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; Hh = $('app').clientHeight || window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(Hh * DPR);
+}
+window.addEventListener('resize', resize);
+
+// ---------- Formato ----------
+function fmt(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60), cs = Math.floor((t * 100) % 100);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + String(cs).padStart(2, '0');
+}
+function starsFor(i, t) { const par = LV[i].par; return t <= par ? 3 : t <= par * 1.35 ? 2 : 1; }
+function starsHtml(n) {
+  let h = '';
+  for (let k = 0; k < 3; k++) h += k < n ? '★' : '<span class="off">★</span>';
+  return h;
+}
+
+// ---------- Audio ----------
+let ac = null, osc = null, filt = null, vol = null, muted = false;
+function initAudio() {
+  if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    osc = ac.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 50;
+    filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 420;
+    vol = ac.createGain(); vol.gain.value = 0;
+    osc.connect(filt); filt.connect(vol); vol.connect(ac.destination); osc.start();
+  } catch (e) { ac = null; }
+}
+function engineSound(speed01, throttle) {
+  if (!ac) return;
+  const t = ac.currentTime;
+  osc.frequency.setTargetAtTime(48 + speed01 * 120 + (throttle ? 22 : 0), t, 0.06);
+  filt.frequency.setTargetAtTime(300 + speed01 * 500, t, 0.06);
+  const on = !muted && game.state === 'play' && !game.bike.dead;
+  vol.gain.setTargetAtTime(on ? (throttle ? 0.07 : 0.035) : 0, t, 0.06);
+}
+function crashSound() {
+  if (!ac || muted) return;
+  try {
+    const n = Math.floor(ac.sampleRate * 0.35), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+    const s = ac.createBufferSource(); s.buffer = buf;
+    const g = ac.createGain(); g.gain.value = 0.25;
+    s.connect(g); g.connect(ac.destination); s.start();
+  } catch (e) { /* sin audio */ }
+}
+
+// ---------- Control ----------
+function input() {
+  return {
+    gas: keys.gas || touchKeys.gas, brake: keys.brake || touchKeys.brake,
+    back: keys.back || touchKeys.back, fwd: keys.fwd || touchKeys.fwd
+  };
+}
+const keyMap = {
+  ArrowUp: 'gas', w: 'gas', W: 'gas', ArrowDown: 'brake', s: 'brake', S: 'brake',
+  ArrowLeft: 'back', a: 'back', A: 'back', ArrowRight: 'fwd', d: 'fwd', D: 'fwd'
+};
+window.addEventListener('keydown', e => {
+  const k = keyMap[e.key];
+  if (k) { keys[k] = true; initAudio(); if (game.state === 'play') e.preventDefault(); return; }
+  if (e.key === 'r' || e.key === 'R') { if (game.state === 'play') restartFromCheckpoint(); }
+  else if (e.key === 'm' || e.key === 'M') toggleSound();
+  else if (e.key === 'Escape') toMenu();
+  else if (e.key === ' ' && game.state === 'play') e.preventDefault();
+});
+window.addEventListener('keyup', e => { const k = keyMap[e.key]; if (k) keys[k] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; for (const k in touchKeys) touchKeys[k] = false; });
+
+document.querySelectorAll('.pbtn').forEach(btn => {
+  const k = btn.dataset.k;
+  const down = e => { e.preventDefault(); touchKeys[k] = true; btn.classList.add('on'); initAudio(); };
+  const up = e => { e.preventDefault(); touchKeys[k] = false; btn.classList.remove('on'); };
+  btn.addEventListener('pointerdown', down);
+  btn.addEventListener('pointerup', up);
+  btn.addEventListener('pointercancel', up);
+  btn.addEventListener('pointerleave', up);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+});
+window.addEventListener('touchstart', () => { $('app').classList.add('show-touch'); }, { passive: true, once: true });
+
+function toggleSound() {
+  muted = !muted;
+  $('bSound').textContent = 'Sonido: ' + (muted ? 'no' : 'sí');
+}
+
+// ---------- Flujo de juego ----------
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+function renderMenu() {
+  const box = $('levels'); box.innerHTML = '';
+  LEVELS.forEach((lv, i) => {
+    const b = best[i];
+    const card = document.createElement('button');
+    card.type = 'button'; card.className = 'card';
+    card.innerHTML =
+      '<span class="diff d' + lv.diff + '">' + lv.label + '</span>' +
+      '<h3>' + lv.name + '</h3>' +
+      '<span class="meta">Meta a ' + LV[i].meters + ' m</span>' +
+      '<span class="stars">' + starsHtml(b ? b.stars : 0) + '</span>' +
+      '<span class="best">' + (b ? 'Mejor: ' + fmt(b.time) : 'Sin récord') + '</span>';
+    card.addEventListener('click', () => startLevel(i));
+    box.appendChild(card);
+  });
+}
+
+function startLevel(i) {
+  initAudio();
+  game.li = i; game.L = LV[i]; game.time = 0; game.crashes = 0; game.cp = -1;
+  game.started = false; game.crashHandled = false; game.crashTimer = 0; game.state = 'play';
+  game.bike = makeBike(game.L, game.L.startX);
+  game.camX = game.bike.p[0].x; game.camY = game.bike.p[0].y;
+  particles.length = 0;
+  $('menu').hidden = true; $('end').hidden = true; $('hud').hidden = false; $('touch').hidden = false;
+  $('lvlname').textContent = LEVELS[i].name;
+  const prog = $('prog');
+  prog.querySelectorAll('.tick').forEach(n => n.remove());
+  game.L.checkpoints.forEach(cp => {
+    const t = document.createElement('div'); t.className = 'tick';
+    t.style.left = (cp.x / game.L.finishX * 100) + '%'; prog.appendChild(t);
+  });
+}
+
+function respawn() {
+  const L = game.L, x = game.cp >= 0 ? L.checkpoints[game.cp].x : L.startX;
+  game.bike = makeBike(L, x);
+  game.crashHandled = false; game.crashTimer = 0;
+  game.camX = game.bike.p[0].x; game.camY = game.bike.p[0].y;
+}
+function restartFromCheckpoint() {
+  if (game.state !== 'play') return;
+  if (!game.bike.dead) { game.crashes++; }
+  respawn();
+}
+
+function toMenu() {
+  game.state = 'menu';
+  game.li = 0; game.L = LV[0]; game.bike = makeBike(LV[0], LV[0].startX);
+  game.camX = game.bike.p[0].x; game.camY = game.bike.p[0].y;
+  renderMenu();
+  $('menu').hidden = false; $('end').hidden = true; $('hud').hidden = true; $('touch').hidden = true;
+}
+
+function finishLevel() {
+  game.state = 'finished'; game.finishTimer = 0.7;
+  const i = game.li, st = starsFor(i, game.time);
+  const prev = best[i];
+  if (!prev || game.time < prev.time) best[i] = { time: game.time, stars: Math.max(st, prev ? prev.stars : 0) };
+  else if (st > prev.stars) prev.stars = st;
+  saveBest();
+  $('endStars').innerHTML = starsHtml(st);
+  $('endTime').textContent = fmt(game.time);
+  $('endCrashes').textContent = String(game.crashes);
+  $('endBest').textContent = fmt(best[i].time);
+  $('bNext').hidden = i >= LEVELS.length - 1;
+}
+
+$('bRestart').addEventListener('click', () => restartFromCheckpoint());
+$('bSound').addEventListener('click', toggleSound);
+$('bMenu').addEventListener('click', toMenu);
+$('bEndMenu').addEventListener('click', toMenu);
+$('bAgain').addEventListener('click', () => startLevel(game.li));
+$('bNext').addEventListener('click', () => startLevel(Math.min(game.li + 1, LEVELS.length - 1)));
+
+// ---------- Simulación ----------
+const BRAKING = { brake: true };
+function simulate(dt) {
+  const b = game.bike;
+  if (game.state === 'play') {
+    const inp = input();
+    if (!game.started && (inp.gas || inp.fwd || inp.back || inp.brake)) game.started = true;
+    if (game.started && !b.dead) game.time += dt;
+    stepBike(b, game.L, inp, dt);
+  } else if (game.state === 'finished') {
+    stepBike(b, game.L, BRAKING, dt);
+  } else {
+    stepBike(b, game.L, NONE, dt);
+  }
+}
+
+function burst(x, y, n, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 260;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.6 + Math.random() * 0.5, max: 1,
+      c: colors[i % colors.length], r: 2 + Math.random() * 3 });
+  }
+}
+
+let hudCache = {};
+function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
+
+function update(dt) {
+  const b = game.bike, A = b.p[0], B = b.p[1], C = b.p[2];
+  const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+  const vx = (A.x - A.px) * SUB * 60, vy = (A.y - A.py) * SUB * 60;
+  const speed = Math.hypot(vx, vy);
+
+  if (game.state === 'play') {
+    if (b.dead && !game.crashHandled) {
+      game.crashHandled = true; game.crashTimer = 0.95; game.crashes++;
+      burst(C.x, C.y, 16, ['#e63946', '#ffd23f', '#f4e9d8']); crashSound();
+    }
+    if (b.dead) { game.crashTimer -= dt; if (game.crashTimer <= 0) respawn(); }
+    if (!b.dead) {
+      const cps = game.L.checkpoints;
+      for (let i = game.cp + 1; i < cps.length; i++) if (A.x > cps[i].x) { game.cp = i; toast('Punto de control'); }
+    }
+    if (b.finished) finishLevel();
+    if (b.rc && input().gas && speed > 200 && Math.random() < 0.6) {
+      particles.push({ x: A.x - 8, y: A.y + WR - 2, vx: -vx * 0.12 + (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 60,
+        life: 0.5, max: 1, c: '#e0a84a', r: 2 + Math.random() * 2 });
+    }
+  } else if (game.state === 'finished') {
+    game.finishTimer -= dt;
+    if (game.finishTimer <= 0 && $('end').hidden) $('end').hidden = false;
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt; if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.vy += 900 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+
+  const sc = scaleNow();
+  const tx = mx + clamp(vx * 0.25, -160, 260), ty = my - (Hh / sc) * 0.08;
+  const k = 1 - Math.exp(-dt * 5);
+  game.camX += (tx - game.camX) * k; game.camY += (ty - game.camY) * k;
+
+  if (game.state !== 'menu') {
+    setText('timer', fmt(game.time));
+    const m = Math.max(0, Math.round(mx / PX_PER_M));
+    setText('stats', Math.round(speed / PX_PER_M * 3.6) + ' km/h · ' + Math.min(m, game.L.meters) + ' / ' + game.L.meters + ' m · Caídas ' + game.crashes);
+    $('progFill').style.width = clamp(mx / game.L.finishX * 100, 0, 100) + '%';
+  }
+  engineSound(clamp(speed / MAXV, 0, 1), game.state === 'play' && input().gas);
+}
+
+// ---------- Dibujo ----------
+function scaleNow() { return clamp(Hh / 540, 0.55, 1.5); }
+
+function hills(sc, par, base, amp, f1, f2, col, seed) {
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, Hh);
+  const off = game.camX * par, yo = -(game.camY) * par * 0.25 * sc;
+  for (let x = 0; x <= W + 16; x += 16) {
+    const wx = x / sc + off;
+    const y = Hh * base + yo + Math.sin(wx * f1 + seed) * amp * sc + Math.sin(wx * f2 + seed * 2.1) * amp * 0.5 * sc;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
+}
+
+function ln(x1, y1, x2, y2, w, col) {
+  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+function drawWheel(x, y, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = '#120e1c'; ctx.beginPath(); ctx.arc(0, 0, WR, 0, 7); ctx.fill();
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6;
+    ln(Math.cos(a) * 11, Math.sin(a) * 11, Math.cos(a) * 14, Math.sin(a) * 14, 2.4, '#3a3352');
+  }
+  ctx.strokeStyle = '#d8d4e6'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, 7); ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    ln(0, 0, Math.cos(a) * 8, Math.sin(a) * 8, 1, '#a39fba');
+  }
+  ctx.fillStyle = '#d8d4e6'; ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawBike(b) {
+  const A = b.p[0], B = b.p[1], C = b.p[2];
+  const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, th = Math.atan2(B.y - A.y, B.x - A.x);
+  const c = Math.cos(th), s = Math.sin(th), dx = C.x - mx, dy = C.y - my;
+  const lx = dx * c + dy * s, ly = -dx * s + dy * c;
+  ctx.save(); ctx.translate(mx, my); ctx.rotate(th); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ln(-30, -9, -6, -4, 3, '#9aa0b4');               // escape
+  ln(-28, 0, -4, -4, 3, '#6d6a86');                // basculante
+  drawWheel(-28, 0, b.wr); drawWheel(28, 0, b.wr);
+  ln(16, -16, 28, 0, 3.5, '#c9ced8');              // horquilla
+  ctx.fillStyle = '#2a2438'; ctx.fillRect(-10, -11, 15, 10);   // motor
+  ctx.fillStyle = '#e63946'; ctx.beginPath();      // carenado
+  ctx.moveTo(-24, -10); ctx.lineTo(-14, -17); ctx.lineTo(6, -19); ctx.lineTo(15, -14); ctx.lineTo(10, -9); ctx.lineTo(-8, -8);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f4e9d8'; ctx.fillRect(-4, -17, 8, 3);      // franja
+  ctx.fillStyle = '#17121f'; ctx.fillRect(-20, -20, 14, 4);    // asiento
+  ln(16, -16, 14, -25, 3, '#17121f');              // manillar
+  // piloto
+  const hip = [-11, -20], sh = [lx + 3, ly + 12], head = [lx, ly];
+  ln(hip[0], hip[1], 2, -18, 6, '#2d3a6b'); ln(2, -18, -2, -5, 6, '#2d3a6b');
+  ln(hip[0], hip[1], sh[0], sh[1], 8, '#f4e9d8');
+  ln(sh[0], sh[1], 15, -26, 5, '#e3cfb2');
+  ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(head[0], head[1], HR, 0, 7); ctx.fill();
+  ctx.fillStyle = '#241b3a'; ctx.beginPath(); ctx.arc(head[0] + 2, head[1] + 1, 6, -0.9, 1.1); ctx.lineTo(head[0] + 2, head[1] + 1); ctx.fill();
+  ctx.restore();
+}
+
+function drawFlag(x, y, on) {
+  ctx.fillStyle = '#d8d4e6'; ctx.fillRect(x - 1.5, y - 70, 3, 70);
+  ctx.fillStyle = on ? '#ffd23f' : '#8f86a8';
+  ctx.beginPath(); ctx.moveTo(x + 1.5, y - 70); ctx.lineTo(x + 36, y - 58); ctx.lineTo(x + 1.5, y - 46); ctx.closePath(); ctx.fill();
+}
+function drawFinish(L) {
+  const x = L.finishX, y = groundY(L, x), w = 150, h = 170;
+  ctx.fillStyle = '#d8d4e6'; ctx.fillRect(x - 3, y - h, 6, h); ctx.fillRect(x + w - 3, y - h, 6, h);
+  const sq = 14, cols = Math.round(w / sq);
+  for (let r = 0; r < 2; r++) for (let i = 0; i < cols; i++) {
+    ctx.fillStyle = (i + r) % 2 ? '#f7ecdc' : '#17121f';
+    ctx.fillRect(x + i * (w / cols), y - h + r * sq, w / cols, sq);
+  }
+}
+
+function draw() {
+  const sc = scaleNow(), L = game.L;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = ctx.createLinearGradient(0, 0, 0, Hh);
+  g.addColorStop(0, '#23244d'); g.addColorStop(0.55, '#6b3f7a'); g.addColorStop(1, '#f08a5d');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
+  // sol bajo
+  ctx.fillStyle = 'rgba(255, 214, 150, 0.9)'; ctx.beginPath(); ctx.arc(W * 0.72, Hh * 0.52, 46 * sc, 0, 7); ctx.fill();
+  hills(sc, 0.08, 0.58, 40, 0.0035, 0.0091, '#5a3a78', 1.3);
+  hills(sc, 0.18, 0.68, 34, 0.0052, 0.0127, '#43295f', 4.1);
+  hills(sc, 0.32, 0.78, 28, 0.0071, 0.0173, '#2f1f4a', 7.7);
+
+  ctx.save();
+  ctx.translate(W / 2, Hh / 2); ctx.scale(sc, sc); ctx.translate(-game.camX, -game.camY);
+  const xl = game.camX - W / 2 / sc - STEP, xr = game.camX + W / 2 / sc + STEP, bottom = game.camY + Hh / 2 / sc + 120;
+  // fosos
+  ctx.fillStyle = '#0f0b1a';
+  for (const p of L.pits) if (p.x1 > xl && p.x0 < xr) ctx.fillRect(p.x0, p.lipY, p.x1 - p.x0, bottom - p.lipY + 400);
+  // terreno
+  const i0 = Math.max(0, Math.floor(xl / STEP)), i1 = Math.min(L.H.length - 1, Math.ceil(xr / STEP));
+  const tg = ctx.createLinearGradient(0, game.camY - Hh / 2 / sc, 0, bottom);
+  tg.addColorStop(0, '#2b2244'); tg.addColorStop(1, '#17112a');
+  ctx.beginPath(); ctx.moveTo(i0 * STEP, L.H[i0]);
+  for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(i * STEP, L.H[i]);
+  ctx.lineTo(i1 * STEP, bottom + 600); ctx.lineTo(i0 * STEP, bottom + 600); ctx.closePath();
+  ctx.fillStyle = tg; ctx.fill();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(i0 * STEP, L.H[i0] + 12);
+  for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(i * STEP, L.H[i] + 12);
+  ctx.strokeStyle = 'rgba(224, 168, 74, 0.28)'; ctx.lineWidth = 10; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(i0 * STEP, L.H[i0]);
+  for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(i * STEP, L.H[i]);
+  ctx.strokeStyle = '#e0a84a'; ctx.lineWidth = 6; ctx.stroke();
+  // banderas y meta
+  L.checkpoints.forEach((cp, i) => { if (cp.x > xl && cp.x < xr) drawFlag(cp.x, groundY(L, cp.x), i <= game.cp); });
+  if (L.finishX > xl - 200 && L.finishX < xr) drawFinish(L);
+  for (const p of particles) {
+    ctx.globalAlpha = clamp(p.life / 0.5, 0, 1); ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  drawBike(game.bike);
+  ctx.restore();
+}
+
+// ---------- Bucle ----------
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const rdt = Math.min(0.05, (now - last) / 1000); last = now;
+  acc += rdt;
+  const dt = 1 / (60 * SUB);
+  while (acc >= dt) { simulate(dt); acc -= dt; }
+  update(rdt); draw();
+  requestAnimationFrame(frame);
+}
+
+resize();
+renderMenu();
+game.camX = game.bike.p[0].x; game.camY = game.bike.p[0].y;
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
